@@ -1,0 +1,869 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Major League Spaceball</title>
+
+    <style>
+        body{
+            font-family:Arial, sans-serif;
+            background:#0f172a;
+            color:#e5e7eb;
+            padding:20px;
+        }
+        button{
+            padding:10px 16px;
+            font-size:16px;
+            margin-top:12px;
+            cursor:pointer;
+        }
+        .hidden{display:none;}
+
+        .roster{
+            display:grid;
+            grid-template-columns:repeat(auto-fill,minmax(250px,1fr));
+            gap:14px;
+        }
+
+        .player-card{
+            background:#1e293b;
+            border:3px solid #38bdf8;
+            border-radius:10px;
+            padding:10px;
+            position:relative;
+            cursor:pointer;
+        }
+        .player-card.selected{
+            outline:3px solid #fbbf24;
+        }
+        .player-card.cut{
+            opacity:0.4;
+            outline:3px solid red;
+        }
+
+        .age-inline{
+            position:absolute;
+            right:10px;
+            top:10px;
+            font-size:14px;
+        }
+
+        .position-counts{
+            margin-top:10px;
+            font-size:14px;
+        }
+
+        /* class colors */
+        .human{border-color:#38bdf8}
+        .robot{border-color:#9ca3af}
+        .zombie{border-color:#22c55e}
+        .devil{border-color:#ef4444}
+        .angel{border-color:#facc15}
+        .martian{border-color:#fb923c}
+        .jovian{border-color:#a855f7}
+    </style>
+</head>
+
+<body>
+
+<!-- WELCOME -->
+<div id="welcome">
+    <h1>Welcome, Manager</h1>
+    <button id="startBtn">See the Roster</button>
+</div>
+
+<!-- USER ROSTER -->
+<div id="rosterScreen" class="hidden">
+    <h2 id="teamTitle"></h2>
+    <div id="roster" class="roster"></div>
+    <div id="rosterCounts" class="position-counts"></div>
+    <button onclick="startDraft()">Go to Draft</button>
+</div>
+
+<!-- DRAFT -->
+<div id="draftScreen" class="hidden">
+    <h2 id="draftTitle"></h2>
+    <div id="draftPool" class="roster"></div>
+    <button onclick="advanceDraft()">Next Round</button>
+</div>
+
+<!-- CUTS -->
+<div id="cutsScreen" class="hidden">
+    <h2>Make Final Cuts (Cut exactly 5 players)</h2>
+    <div id="cutsRoster" class="roster"></div>
+    <div id="cutsCounts" class="position-counts"></div>
+    <button id="confirmCutsBtn" onclick="confirmCuts()" disabled>
+        Begin Regular Season
+    </button>
+</div>
+
+<!-- LEAGUE -->
+<div id="leagueScreen" class="hidden">
+    <h2>Major League Spaceball</h2>
+    <div id="leagueList"></div>
+    <button id="leagueActionBtn"></button>
+</div>
+
+<!-- TEAM DETAIL -->
+<div id="teamDetailScreen" class="hidden">
+    <button onclick="backToLeague()">← Back to League</button>
+    <h2 id="teamDetailTitle"></h2>
+    <div id="teamDetailRoster" class="roster"></div>
+    <div id="teamDetailCounts" class="position-counts"></div>
+</div>
+
+<!-- FREE AGENTS -->
+<div id="freeAgentsScreen" class="hidden">
+    <h2>Free Agents</h2>
+    <p>Select free agents to add and cut an equal number of current roster players.</p>
+    <div id="freeAgentsList" class="roster"></div>
+    <h3>Your Current Roster</h3>
+    <div id="freeAgentCutsRoster" class="roster"></div>
+    <div id="freeAgentCounts" class="position-counts"></div>
+    <button id="confirmFreeAgentsBtn" onclick="confirmFreeAgents()" disabled>
+        Begin Regular Season
+    </button>
+</div>
+
+<!-- GAME SETUP -->
+<div id="gameSetupScreen" class="hidden">
+    <h2 id="gameSetupTitle"></h2>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">
+
+        <div>
+            <h3>Your Lineup</h3>
+
+            <h4>Batting Order (9)</h4>
+            <div id="userBattingOrder" class="roster"></div>
+
+            <h4>Starting Pitcher</h4>
+            <div id="userStartingPitcher" class="roster"></div>
+
+            <h4>Relief Pitcher</h4>
+            <div id="userReliefPitcher" class="roster"></div>
+
+            <h4>Bench</h4>
+            <div id="userBench" class="roster"></div>
+        </div>
+
+        <div>
+            <h3>Opponent Lineup</h3>
+
+            <h4>Batting Order</h4>
+            <div id="opponentBattingOrder" class="roster"></div>
+
+            <h4>Starting Pitcher</h4>
+            <div id="opponentStartingPitcher" class="roster"></div>
+
+            <h4>Relief Pitcher</h4>
+            <div id="opponentReliefPitcher" class="roster"></div>
+        </div>
+
+    </div>
+
+    <button id="playBallBtn" disabled onclick="startGame()">Play Ball</button>
+
+</div>
+
+<!-- GAME -->
+<div id="gameScreen" class="hidden">
+
+    <h2 id="gameTitle"></h2>
+
+    <!-- SCOREBOARD -->
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
+
+        <div style="text-align:center">
+            <strong id="awayTeamName"></strong>
+            <div id="awayScore" style="font-size:28px">0</div>
+            <div id="awayMeta"></div>
+        </div>
+
+        <div style="text-align:center">
+            <div id="inningArrow" style="font-size:24px">▲</div>
+            <div id="inningNumber">1</div>
+            <div id="outsIndicator"></div>
+        </div>
+
+        <div style="text-align:center">
+            <strong id="homeTeamName"></strong>
+            <div id="homeScore" style="font-size:28px">0</div>
+            <div id="homeMeta"></div>
+        </div>
+
+    </div>
+
+    <div style="display:grid;grid-template-columns:2fr 1fr;gap:20px">
+
+        <!-- PLAY BY PLAY -->
+        <div>
+            <h3>Play By Play</h3>
+            <div id="gameLog" style="white-space:pre-line"></div>
+        </div>
+
+        <!-- CURRENT PLAYERS -->
+        <div>
+
+            <h4>Now Batting</h4>
+            <div id="currentBatterCard"></div>
+
+            <h4>On The Mound</h4>
+            <div id="currentPitcherCard"></div>
+
+            <button style="margin-top:12px" onclick="advanceHalfInning()">Next</button>
+
+        </div>
+
+    </div>
+
+</div>
+
+
+
+<script>
+    /* ================== CONSTANTS ================== */
+    const batterPositions = ["1B","2B","3B","SS","LF","CF","RF","C"];
+    const requiredMinimums = {"1B":1,"2B":1,"3B":1,"SS":1,"C":1,"LF":1,"CF":1,"RF":1,"SP":3,"RP":3};
+    const REQUIRED_CUTS = 5;
+
+    /* ================== STATE ================== */
+    let league = [];
+    let userTeam = null;
+    let draftRound = 1;
+    let selectedDraft = null;
+    let currentDraftPool = [];
+    let cuts = new Set();
+
+    let freeAgencyComplete = false;
+    let freeAgents = [];
+    let selectedFreeAgents = new Set();
+    let freeAgentCuts = new Set();
+
+    let currentOpponent = null;
+    let userLineup = null;
+    let opponentLineup = null;
+
+    let gameState = null;
+
+
+    /* ================== HELPERS ================== */
+    const rand = a => a[Math.floor(Math.random()*a.length)];
+    const stat = a => Math.round(a + (Math.random() - 0.5) * 20);
+
+    function pitcherReadiness(player){
+        if(player.rest === 0) return "Ready";
+        if(player.rest === 1) return "Needs 1 game of rest";
+        return "Needs 2 games of rest";
+    }
+
+    function generatePlayer(role, position){
+        return {
+            name: `Player ${Math.floor(Math.random()*10000)}`,
+            classKey: "human",
+            age: 20 + Math.floor(Math.random()*6),
+            position,
+            overall: Math.max(20, Math.min(90, stat(55))),
+            rest: 0
+        };
+    }
+
+    function countPositions(players){
+        const c = {};
+        players.forEach(p => c[p.position] = (c[p.position]||0) + 1);
+        return c;
+    }
+
+    function positionSummary(players){
+        const c = countPositions(players);
+        return Object.entries(requiredMinimums)
+            .map(([p,m]) => `${p}: ${c[p]||0}/${m}`)
+            .join(" | ");
+    }
+
+    function teamOverall(team){
+        return Math.round(team.roster.reduce((s,p)=>s+p.overall,0)/team.roster.length);
+    }
+
+    function createCard(player, onClick){
+        const card = document.createElement("div");
+        card.className = `player-card ${player.classKey}`;
+        card.innerHTML = `<strong>${player.name}</strong>
+                      <span class="age-inline">Age ${player.age}</span><br>
+                      ${player.position} | OVR ${player.overall}`;
+        if(onClick) card.onclick = onClick;
+        return card;
+    }
+
+    /* ================== LEAGUE GENERATION ================== */
+    function generateLeague(){
+        const divisions = ["North","South","Red","Giant"];
+        league = [];
+
+        divisions.forEach(div=>{
+            for(let i=0;i<4;i++){
+                const team = {
+                    name: (div==="North" && i===0) ? "Carolina Reapers" : `${div} Team ${i+1}`,
+                    division: div,
+                    roster: []
+                };
+                batterPositions.forEach(p=>team.roster.push(generatePlayer("batter",p)));
+                for(let j=0;j<3;j++) team.roster.push(generatePlayer("pitcher","SP"));
+                for(let j=0;j<3;j++) team.roster.push(generatePlayer("pitcher","RP"));
+                for(let j=0;j<2;j++) team.roster.push(generatePlayer("batter",rand(batterPositions)));
+                league.push(team);
+                if(team.name==="Carolina Reapers") userTeam = team;
+            }
+        });
+    }
+
+    /* ================== SCREENS ================== */
+    function showRoster(){
+        welcome.classList.add("hidden");
+        rosterScreen.classList.remove("hidden");
+        teamTitle.innerText=`${userTeam.name} - ${teamOverall(userTeam)} OVR`;
+        roster.innerHTML="";
+        rosterCounts.innerText = positionSummary(userTeam.roster);
+        userTeam.roster.forEach(p => roster.appendChild(createCard(p)));
+    }
+
+    /* ================== DRAFT ================== */
+    function startDraft(){
+        rosterScreen.classList.add("hidden");
+        draftScreen.classList.remove("hidden");
+        draftRound=1;
+        nextDraftRound();
+    }
+
+    function nextDraftRound(){
+        selectedDraft=null;
+        currentDraftPool=[];
+        draftTitle.innerText = `Draft Round ${draftRound}`;
+        for(let i=0;i<12;i++){
+            const pos = Math.random()<0.6 ? rand(batterPositions) : (Math.random()<0.5?"SP":"RP");
+            currentDraftPool.push(generatePlayer("any", pos));
+        }
+        renderDraft();
+    }
+
+    function renderDraft(){
+        draftPool.innerHTML="";
+        currentDraftPool.forEach(p=>{
+            const c=createCard(p, ()=>{
+                document.querySelectorAll("#draftPool .player-card").forEach(x=>x.classList.remove("selected"));
+                c.classList.add("selected");
+                selectedDraft = p;
+            });
+            draftPool.appendChild(c);
+        });
+    }
+
+    function advanceDraft(){
+        if(!selectedDraft) return alert("Select a player");
+        userTeam.roster.push(selectedDraft);
+        draftRound++;
+        if(draftRound>5){
+            draftScreen.classList.add("hidden");
+            showCuts();
+        }else nextDraftRound();
+    }
+
+    /* ================== CUTS ================== */
+    function showCuts(){
+        cutsScreen.classList.remove("hidden");
+        renderCuts();
+    }
+
+    function renderCuts(){
+        cutsRoster.innerHTML="";
+        cutsCounts.innerText = positionSummary(userTeam.roster.filter(p=>!cuts.has(p)));
+        confirmCutsBtn.disabled = !validateCuts();
+        userTeam.roster.forEach(p=>{
+            const c = createCard(p, ()=>{
+                cuts.has(p) ? cuts.delete(p) : cuts.add(p);
+                renderCuts();
+            });
+            if(cuts.has(p)) c.classList.add("cut");
+            cutsRoster.appendChild(c);
+        });
+    }
+
+    function validateCuts(){
+        if(cuts.size !== REQUIRED_CUTS) return false;
+        const r = userTeam.roster.filter(p=>!cuts.has(p));
+        const c = countPositions(r);
+        return Object.entries(requiredMinimums).every(([p,m]) => (c[p]||0) >= m);
+    }
+
+    function confirmCuts(){
+        userTeam.roster = userTeam.roster.filter(p => !cuts.has(p));
+        cuts.clear();
+        cutsScreen.classList.add("hidden");
+        showLeague();
+    }
+
+    /* ================== LEAGUE ================== */
+    function showLeague(){
+        leagueScreen.classList.remove("hidden");
+        leagueList.innerHTML = "";
+        league.sort((a,b)=>teamOverall(b)-teamOverall(a)).forEach(t=>{
+            const b = document.createElement("button");
+            b.innerText=`${t.name} (${t.division}) - ${teamOverall(t)} OVR`;
+            b.onclick = ()=>showTeamDetail(t);
+            leagueList.appendChild(b);
+            const d = document.createElement("div");
+            d.innerText = positionSummary(t.roster);
+            leagueList.appendChild(d);
+        });
+        leagueActionBtn.innerText = freeAgencyComplete ? "Next Game" : "See Free Agents";
+        leagueActionBtn.onclick = freeAgencyComplete ? showSetLineup : showFreeAgents;
+    }
+
+    /* ================== TEAM DETAIL ================== */
+    function showTeamDetail(team){
+        leagueScreen.classList.add("hidden");
+        teamDetailScreen.classList.remove("hidden");
+        teamDetailTitle.innerText=`${team.name} (${team.division}) - ${teamOverall(team)} OVR`;
+        teamDetailRoster.innerHTML="";
+        team.roster.forEach(p=>teamDetailRoster.appendChild(createCard(p)));
+        teamDetailCounts.innerText = positionSummary(team.roster);
+    }
+
+    function backToLeague(){
+        teamDetailScreen.classList.add("hidden");
+        showLeague();
+    }
+
+    /* ================== FREE AGENCY ================== */
+    function showFreeAgents(){
+        leagueScreen.classList.add("hidden");
+        freeAgentsScreen.classList.remove("hidden");
+        freeAgents = [];
+        selectedFreeAgents.clear();
+        freeAgentCuts.clear();
+        for(let i=0;i<4;i++){
+            const pos = Math.random()<0.6 ? rand(batterPositions) : (Math.random()<0.5?"SP":"RP");
+            freeAgents.push(generatePlayer("any", pos));
+        }
+        renderFreeAgents();
+        renderFreeAgentRoster();
+        updateFreeAgentButton();
+    }
+
+    function renderFreeAgents(){
+        freeAgentsList.innerHTML="";
+        freeAgents.forEach(p=>{
+            const c=createCard(p, ()=>{
+                selectedFreeAgents.has(p) ? selectedFreeAgents.delete(p) : selectedFreeAgents.add(p);
+                renderFreeAgents(); renderFreeAgentRoster(); updateFreeAgentButton();
+            });
+            if(selectedFreeAgents.has(p)) c.classList.add("selected");
+            freeAgentsList.appendChild(c);
+        });
+    }
+
+    function renderFreeAgentRoster(){
+        freeAgentCutsRoster.innerHTML="";
+        userTeam.roster.forEach(p=>{
+            const c=createCard(p, ()=>{
+                freeAgentCuts.has(p) ? freeAgentCuts.delete(p) : freeAgentCuts.add(p);
+                renderFreeAgentRoster(); updateFreeAgentButton();
+            });
+            if(freeAgentCuts.has(p)) c.classList.add("cut");
+            freeAgentCutsRoster.appendChild(c);
+        });
+        const projected = userTeam.roster.filter(p=>!freeAgentCuts.has(p)).concat([...selectedFreeAgents]);
+        freeAgentCounts.innerText = positionSummary(projected);
+    }
+
+    function updateFreeAgentButton(){
+        confirmFreeAgentsBtn.disabled = !(selectedFreeAgents.size === freeAgentCuts.size && validateCutsProjected());
+    }
+
+    function validateCutsProjected(){
+        const r = userTeam.roster.filter(p=>!freeAgentCuts.has(p)).concat([...selectedFreeAgents]);
+        const c = countPositions(r);
+        return Object.entries(requiredMinimums).every(([p,m]) => (c[p]||0) >= m);
+    }
+
+    function confirmFreeAgents(){
+        userTeam.roster = userTeam.roster.filter(p => !freeAgentCuts.has(p));
+        selectedFreeAgents.forEach(p=>userTeam.roster.push(p));
+        freeAgencyComplete = true;
+        freeAgentsScreen.classList.add("hidden");
+        showLeague();
+    }
+
+    /* ================== SET LINEUP ================== */
+    function showSetLineup(){
+        leagueScreen.classList.add("hidden");
+        gameSetupScreen.classList.remove("hidden");
+
+        currentOpponent = rand(league.filter(t => t!==userTeam));
+
+        gameSetupTitle.innerText =
+            `${userTeam.name} (${teamOverall(userTeam)} OVR) vs ` +
+            `${currentOpponent.name} (${teamOverall(currentOpponent)} OVR)`;
+
+
+        userLineup = {batters:[], sp:null, rp:null};
+        opponentLineup = generateAILineup(currentOpponent);
+
+        renderUserLineup();
+        renderOpponentLineup();
+        validateUserLineup();
+    }
+
+    function generateAILineup(team){
+        const lineup = {batters:[], sp:null, rp:null};
+
+        // Lock in 1 per position first
+        batterPositions.forEach(pos=>{
+            const best = team.roster
+                .filter(p=>p.position===pos)
+                .sort((a,b)=>b.overall - a.overall)[0];
+            if(best) lineup.batters.push(best);
+        });
+
+        // Fill remaining spots to reach 9 batters with best remaining players
+        const used = new Set(lineup.batters);
+        const remaining = team.roster
+            .filter(p => batterPositions.includes(p.position) && !used.has(p))
+            .sort((a,b)=>b.overall - a.overall);
+
+        while(lineup.batters.length < 9 && remaining.length){
+            lineup.batters.push(remaining.shift());
+        }
+
+        // Sort batting order best to worst with slight randomness
+        lineup.batters.sort((a,b)=>{
+            return (b.overall - a.overall) + (Math.random()*10 - 5);
+        });
+
+        lineup.sp = team.roster
+            .filter(p=>p.position==="SP" && p.rest===0)
+            .sort((a,b)=>b.overall - a.overall)[0];
+
+        lineup.rp = team.roster
+            .filter(p=>p.position==="RP" && p.rest===0)
+            .sort((a,b)=>b.overall - a.overall)[0];
+
+        return lineup;
+    }
+
+
+    function renderUserLineup(){
+        userBattingOrder.innerHTML = "";
+        userStartingPitcher.innerHTML = "";
+        userReliefPitcher.innerHTML = "";
+        userBench.innerHTML = "";
+
+        const batters = userTeam.roster.filter(p => batterPositions.includes(p.position));
+        const sps = userTeam.roster.filter(p => p.position==="SP");
+        const rps = userTeam.roster.filter(p => p.position==="RP");
+
+        // Bench
+        batters.forEach(p=>{
+            const c = createCard(p, ()=>{
+                if(userLineup.batters.includes(p)){
+                    userLineup.batters = userLineup.batters.filter(b=>b!==p);
+                } else if(userLineup.batters.length<9){
+                    userLineup.batters.push(p);
+                }
+                renderUserLineup();
+                validateUserLineup();
+            });
+            if(userLineup.batters.includes(p)) c.classList.add("selected");
+            userBench.appendChild(c);
+        });
+
+        // Batting Order (sortable)
+        userLineup.batters.forEach(p=>{
+            const c = createCard(p, ()=>{
+                userLineup.batters = userLineup.batters.filter(b=>b!==p);
+                renderUserLineup();
+                validateUserLineup();
+            });
+            userBattingOrder.appendChild(c);
+        });
+        enableDragSort(userBattingOrder, arr => userLineup.batters = arr);
+
+        // Starting Pitchers
+        sps.forEach(p=>{
+            const c = createCard(p, ()=>{
+                if(p.rest>0) return;
+                userLineup.sp = p;
+                renderUserLineup();
+                validateUserLineup();
+            });
+            c.insertAdjacentHTML("afterbegin", `<div style="font-size:12px">${pitcherReadiness(p)}</div>`);
+            if(p.rest>0) c.style.opacity="0.4";
+            if(userLineup.sp===p) c.classList.add("selected");
+            userStartingPitcher.appendChild(c);
+        });
+
+        // Relief Pitchers
+        rps.forEach(p=>{
+            const c = createCard(p, ()=>{
+                if(p.rest>0) return;
+                userLineup.rp = p;
+                renderUserLineup();
+                validateUserLineup();
+            });
+            c.insertAdjacentHTML("afterbegin", `<div style="font-size:12px">${pitcherReadiness(p)}</div>`);
+            if(p.rest>0) c.style.opacity="0.4";
+            if(userLineup.rp===p) c.classList.add("selected");
+            userReliefPitcher.appendChild(c);
+        });
+    }
+
+    function renderOpponentLineup(){
+        opponentBattingOrder.innerHTML="";
+        opponentStartingPitcher.innerHTML="";
+        opponentReliefPitcher.innerHTML="";
+
+        opponentLineup.batters.forEach(p=>{
+            opponentBattingOrder.appendChild(createCard(p));
+        });
+
+        if(opponentLineup.sp){
+            const c = createCard(opponentLineup.sp);
+            c.insertAdjacentHTML("afterbegin", `<div style="font-size:12px">${pitcherReadiness(opponentLineup.sp)}</div>`);
+            opponentStartingPitcher.appendChild(c);
+        }
+
+        if(opponentLineup.rp){
+            const c = createCard(opponentLineup.rp);
+            c.insertAdjacentHTML("afterbegin", `<div style="font-size:12px">${pitcherReadiness(opponentLineup.rp)}</div>`);
+            opponentReliefPitcher.appendChild(c);
+        }
+    }
+
+
+    function validateUserLineup(){
+        let valid = true;
+        if(userLineup.batters.length!==9) valid=false;
+        const counts = countPositions(userLineup.batters);
+        batterPositions.forEach(pos=>{ if((counts[pos]||0)<1) valid=false; });
+        if(!userLineup.sp || !userLineup.rp) valid=false;
+        playBallBtn.disabled = !valid;
+    }
+
+    function startGame(){
+        const errors = [];
+
+        if(userLineup.batters.length !== 9){
+            errors.push("Batting order must have exactly 9 players");
+        }
+
+        const counts = countPositions(userLineup.batters);
+        batterPositions.forEach(pos=>{
+            if((counts[pos]||0) < 1){
+                errors.push(`Batting order must include at least 1 ${pos}`);
+            }
+        });
+
+        if(!userLineup.sp) errors.push("You must select a starting pitcher");
+        if(!userLineup.rp) errors.push("You must select a relief pitcher");
+
+        if(errors.length){
+            alert(errors.join("\n"));
+            return;
+        }
+
+        gameSetupScreen.classList.add("hidden");
+        gameScreen.classList.remove("hidden");
+
+        initGame();
+    }
+
+    function initGame(){
+        gameState = {
+            inning: 1,
+            top: true,
+            outs: 0,
+            userScore: 0,
+            opponentScore: 0,
+            userBatterIndex: 0,
+            oppBatterIndex: 0,
+            gameOver: false
+        };
+
+        gameTitle.innerText = `${userTeam.name} vs ${currentOpponent.name}`;
+        gameLog.innerText = "Play Ball!\n";
+
+        updateScoreboard();
+
+        // Show upcoming batter and pitcher WITHOUT advancing play
+        const batter = opponentLineup.batters[0];
+        const pitcher = userLineup.sp;
+        updateCurrentPlayers(batter, pitcher);
+    }
+
+
+    function updateCurrentPlayers(batter, pitcher){
+        currentBatterCard.innerHTML = "";
+        currentPitcherCard.innerHTML = "";
+
+        currentBatterCard.appendChild(createCard(batter));
+        currentPitcherCard.appendChild(createCard(pitcher));
+    }
+
+
+    function updateScoreboard(){
+        awayTeamName.innerText = currentOpponent.name;
+        homeTeamName.innerText = userTeam.name;
+
+        awayScore.innerText = gameState.opponentScore;
+        homeScore.innerText = gameState.userScore;
+
+        awayMeta.innerText = `OVR ${teamOverall(currentOpponent)}`;
+        homeMeta.innerText = `OVR ${teamOverall(userTeam)}`;
+
+        inningNumber.innerText = gameState.inning;
+        inningArrow.innerText = gameState.top ? "▲" : "▼";
+
+        outsIndicator.innerHTML = "";
+        for(let i=0;i<3;i++){
+            const dot = document.createElement("span");
+            dot.innerText = "●";
+            dot.style.margin = "0 2px";
+            dot.style.opacity = i < gameState.outs ? "1" : "0.2";
+            outsIndicator.appendChild(dot);
+        }
+    }
+
+
+    function plateAppearance(batter, pitcher){
+        const roll = Math.random()*100;
+        const diff = batter.overall - pitcher.overall;
+
+        if(roll < 10 + diff*0.1) return "HR";
+        if(roll < 25 + diff*0.1) return "HIT";
+        if(roll < 30) return "BB";
+        return "OUT";
+    }
+
+    function advanceHalfInning(){
+
+        if(gameState.gameOver) return;
+
+
+        const offenseIsUser = !gameState.top;
+        const lineup = offenseIsUser ? userLineup.batters : opponentLineup.batters;
+        const pitcher = offenseIsUser ? opponentLineup.sp : userLineup.sp;
+
+        const batterIndex = offenseIsUser ? gameState.userBatterIndex : gameState.oppBatterIndex;
+        const batter = lineup[batterIndex % 9];
+
+        updateScoreboard();
+        updateCurrentPlayers(batter, pitcher);
+
+        const result = plateAppearance(batter, pitcher);
+
+        gameLog.innerText =
+            `Inning ${gameState.inning} ${gameState.top?"Top":"Bottom"}: ${batter.name} - ${result}\n`
+            + gameLog.innerText;
+
+        if(result === "HR"){
+            offenseIsUser ? gameState.userScore++ : gameState.opponentScore++;
+        }
+        else if(result === "OUT"){
+            gameState.outs++;
+        }
+
+        if(offenseIsUser) gameState.userBatterIndex++;
+        else gameState.oppBatterIndex++;
+
+        if(gameState.outs >= 3){
+            gameState.outs = 0;
+
+            // END OF TOP 9: home team already winning → game over
+            if(
+                gameState.inning === 9 &&
+                gameState.top === true &&
+                gameState.userScore > gameState.opponentScore
+            ){
+                endGame();
+                return;
+            }
+
+            gameState.top = !gameState.top;
+
+            if(gameState.top){
+                gameState.inning++;
+            }
+
+            // END OF BOTTOM 9 OR LATER: scores not tied → game over
+            if(
+                !gameState.top &&
+                gameState.inning >= 9 &&
+                gameState.userScore !== gameState.opponentScore
+            ){
+                endGame();
+                return;
+            }
+
+            gameLog.innerText += "\n--- Side Retired ---";
+        }
+
+    }
+
+    function endGame(){
+        gameState.gameOver = true;
+
+        gameLog.innerText =
+            `FINAL\n${userTeam.name} ${gameState.userScore} - ` +
+            `${currentOpponent.name} ${gameState.opponentScore}\n\n` +
+            gameLog.innerText;
+
+        // Update records
+        if(gameState.userScore > gameState.opponentScore){
+            userTeam.wins = (userTeam.wins || 0) + 1;
+            currentOpponent.losses = (currentOpponent.losses || 0) + 1;
+        } else {
+            userTeam.losses = (userTeam.losses || 0) + 1;
+            currentOpponent.wins = (currentOpponent.wins || 0) + 1;
+        }
+
+        // Replace Next button
+        const nextBtn = document.querySelector("#gameScreen button");
+        nextBtn.innerText = "Standings";
+        nextBtn.onclick = () => {
+            gameScreen.classList.add("hidden");
+            showLeague();
+        };
+    }
+
+
+
+
+    /* Drag & Drop Sort Helper */
+    function enableDragSort(container, callback){
+        let dragEl = null;
+        container.querySelectorAll(".player-card").forEach(card=>{
+            card.draggable = true;
+            card.addEventListener("dragstart", e=>dragEl = card);
+            card.addEventListener("dragover", e=>e.preventDefault());
+            card.addEventListener("drop", e=>{
+                e.preventDefault();
+                if(dragEl===card) return;
+                container.insertBefore(dragEl, card.nextSibling);
+                callback([...container.querySelectorAll(".player-card")].map(c=>{
+                    return userLineup.batters.find(p=>p.name===c.querySelector("strong").innerText);
+                }));
+            });
+        });
+    }
+
+    /* ================== INIT ================== */
+    window.onload = () => {
+        generateLeague();
+        startBtn.onclick = showRoster;
+    };
+</script>
+
+
+
+</body>
+</html>
