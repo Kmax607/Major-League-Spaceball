@@ -678,6 +678,10 @@
     }
 
     function initGame(){
+        const nextBtn = document.querySelector("#gameScreen button");
+        nextBtn.innerText = "Next";
+        nextBtn.onclick = advanceHalfInning;
+
         gameState = {
             inning: 1,
             top: true,
@@ -693,11 +697,7 @@
         gameLog.innerText = "Play Ball!\n";
 
         updateScoreboard();
-
-        // Show upcoming batter and pitcher WITHOUT advancing play
-        const batter = opponentLineup.batters[0];
-        const pitcher = userLineup.sp;
-        updateCurrentPlayers(batter, pitcher);
+        updateUpcomingPlayers();
     }
 
 
@@ -731,6 +731,21 @@
             dot.style.opacity = i < gameState.outs ? "1" : "0.2";
             outsIndicator.appendChild(dot);
         }
+    }
+
+    function updateUpcomingPlayers(){
+        const offenseIsUser = !gameState.top;
+
+        const lineup = offenseIsUser ? userLineup.batters : opponentLineup.batters;
+        const pitcher = offenseIsUser ? opponentLineup.sp : userLineup.sp;
+
+        const batterIndex = offenseIsUser
+            ? gameState.userBatterIndex
+            : gameState.oppBatterIndex;
+
+        const batter = lineup[batterIndex % 9];
+
+        updateCurrentPlayers(batter, pitcher);
     }
 
 
@@ -778,7 +793,7 @@
         if(gameState.outs >= 3){
             gameState.outs = 0;
 
-            // END OF TOP 9: home team already winning → game over
+            // End of TOP 9, home team already winning
             if(
                 gameState.inning === 9 &&
                 gameState.top === true &&
@@ -788,25 +803,28 @@
                 return;
             }
 
+            // Switch sides
             gameState.top = !gameState.top;
 
+            // Advance inning when moving to top
             if(gameState.top){
                 gameState.inning++;
             }
 
-            // END OF BOTTOM 9 OR LATER: scores not tied → game over
+            // End of BOTTOM 9 or later, score not tied
             if(
-                !gameState.top &&
                 gameState.inning >= 9 &&
+                gameState.top === true &&
                 gameState.userScore !== gameState.opponentScore
             ){
                 endGame();
                 return;
             }
 
-            gameLog.innerText += "\n--- Side Retired ---";
+            //gameLog.innerText += "\n--- Side Retired ---";
         }
 
+        updateUpcomingPlayers();
     }
 
     function endGame(){
