@@ -250,6 +250,10 @@
     /* ================== HELPERS ================== */
     const rand = a => a[Math.floor(Math.random()*a.length)];
     const stat = a => Math.round(a + (Math.random() - 0.5) * 20);
+    function shuffle(arr){
+        return [...arr].sort(() => Math.random() - 0.5);
+    }
+
 
     function pitcherReadiness(player){
         if(player.rest === 0) return "Ready";
@@ -297,15 +301,18 @@
 
     /* ================== LEAGUE GENERATION ================== */
     function generateLeague(){
-        const divisions = ["North","South","Red","Giant"];
+        const divisions = ["North","South","East","West","Red","Giant"];
         league = [];
 
         divisions.forEach(div=>{
-            for(let i=0;i<4;i++){
+            for(let i=0;i<5;i++){
                 const team = {
                     name: (div==="North" && i===0) ? "Carolina Reapers" : `${div} Team ${i+1}`,
                     division: div,
-                    roster: []
+                    roster: [],
+                    wins: 0,
+                    losses: 0,
+                    schedule: []
                 };
                 batterPositions.forEach(p=>team.roster.push(generatePlayer("batter",p)));
                 for(let j=0;j<3;j++) team.roster.push(generatePlayer("pitcher","SP"));
@@ -316,6 +323,58 @@
             }
         });
     }
+
+    function generateSchedules(){
+        league.forEach(team => {
+            const sameDivision = league.filter(t =>
+                t !== team && t.division === team.division
+            );
+
+            const otherTeams = league.filter(t =>
+                t.division !== team.division
+            );
+
+            // 4 division opponents twice (home & away logic not tracked)
+            const divisionGames = [
+                ...sameDivision,
+                ...sameDivision
+            ];
+
+            // 12 random non-division opponents
+            const randomGames = shuffle(otherTeams).slice(0, 12);
+
+            team.schedule = shuffle([...divisionGames, ...randomGames]);
+        });
+    }
+
+    function simulateLeagueGames(){
+        const played = new Set();
+
+        league.forEach(team => {
+            team.schedule.forEach(opponent => {
+                const key = [team.name, opponent.name].sort().join("|");
+                if(played.has(key)) return;
+
+                played.add(key);
+
+                const teamOVR = teamOverall(team);
+                const oppOVR = teamOverall(opponent);
+
+                const roll = Math.random() * (teamOVR + oppOVR);
+                const teamWins = roll < teamOVR;
+
+                if(teamWins){
+                    team.wins++;
+                    opponent.losses++;
+                } else {
+                    opponent.wins++;
+                    team.losses++;
+                }
+            });
+        });
+    }
+
+
 
     /* ================== SCREENS ================== */
     function showRoster(){
@@ -406,18 +465,36 @@
     function showLeague(){
         leagueScreen.classList.remove("hidden");
         leagueList.innerHTML = "";
-        league.sort((a,b)=>teamOverall(b)-teamOverall(a)).forEach(t=>{
-            const b = document.createElement("button");
-            b.innerText=`${t.name} (${t.division}) - ${teamOverall(t)} OVR`;
-            b.onclick = ()=>showTeamDetail(t);
-            leagueList.appendChild(b);
+
+        // Sort by wins DESC, then OVR DESC
+        league.sort((a, b) => {
+            const winsA = a.wins || 0;
+            const winsB = b.wins || 0;
+
+            if (winsB !== winsA) return winsB - winsA;
+            return teamOverall(b) - teamOverall(a);
+        });
+
+        league.forEach(t => {
+            const wins = t.wins || 0;
+            const losses = t.losses || 0;
+
+            const btn = document.createElement("button");
+            btn.innerText =
+                `(${wins}-${losses}) ${t.name} (${t.division}) - ${teamOverall(t)} OVR`;
+
+            btn.onclick = () => showTeamDetail(t);
+            leagueList.appendChild(btn);
+
             const d = document.createElement("div");
             d.innerText = positionSummary(t.roster);
             leagueList.appendChild(d);
         });
+
         leagueActionBtn.innerText = freeAgencyComplete ? "Next Game" : "See Free Agents";
         leagueActionBtn.onclick = freeAgencyComplete ? showSetLineup : showFreeAgents;
     }
+
 
     /* ================== TEAM DETAIL ================== */
     function showTeamDetail(team){
@@ -877,8 +954,11 @@
     /* ================== INIT ================== */
     window.onload = () => {
         generateLeague();
+        generateSchedules();
+        simulateLeagueGames();
         startBtn.onclick = showRoster;
     };
+
 </script>
 
 
