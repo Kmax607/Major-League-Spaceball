@@ -324,6 +324,51 @@
         return [...arr].sort(() => Math.random() - 0.5);
     }
 
+    function simulateOtherGamesThisWeek() {
+        const handled = new Set();
+
+        league.forEach(team => {
+            // Skip user game participants
+            if (team === userTeam || team === currentOpponent) return;
+
+            const opponent = team.schedule[currentWeek];
+            if (!opponent) return;
+
+            // Skip if opponent is user game
+            if (opponent === userTeam || opponent === currentOpponent) return;
+
+            const key = [team.name, opponent.name].sort().join("|");
+            if (handled.has(key)) return;
+
+            handled.add(key);
+
+            simulateGame(team, opponent);
+        });
+    }
+
+
+    function validateSchedules() {
+        for (let w = 0; w < 20; w++) {
+            const seen = new Set();
+
+            league.forEach(team => {
+                const opp = team.schedule[w];
+                if (!opp) return;
+
+                const key = [team.name, opp.name].sort().join("|");
+
+                if (seen.has(key)) return;
+                seen.add(key);
+
+                // Force symmetry
+                if (opp.schedule[w] !== team) {
+                    opp.schedule[w] = team;
+                }
+            });
+        }
+    }
+
+
 
     /* ================== LEAGUE GENERATION ================== */
     function generateLeague(){
@@ -402,6 +447,7 @@
         });
 
         generateSeasonSchedules();
+        validateSchedules();
     }
 
 
@@ -476,29 +522,15 @@
 
 
     function startNextGame() {
+
+        //league.forEach(team => advancePitcherRest(team));
+
         if (currentWeek >= userTeam.schedule.length) {
             alert("Season complete!");
             return;
         }
 
         currentOpponent = userTeam.schedule[currentWeek];
-
-        // Simulate all OTHER games this week
-        league.forEach(team => {
-            if (team === userTeam) return;
-
-            const opponent = team.schedule[currentWeek];
-            if (!opponent) return;
-
-            // Prevent double-simulation
-            if (league.indexOf(team) > league.indexOf(opponent)) return;
-
-            simulateGame(team, opponent);
-        });
-
-        // Advance pitcher rest ONCE per week
-        league.forEach(team => advancePitcherRest(team));
-
         showSetLineup();
     }
 
@@ -886,6 +918,9 @@
     }
 
     function startGame(){
+
+        league.forEach(team => advancePitcherRest(team));
+
         const errors = [];
 
         if(userLineup.batters.length !== 9){
@@ -1083,6 +1118,9 @@
         userTeam.gamesPlayed = (userTeam.gamesPlayed || 0) + 1;
         currentOpponent.gamesPlayed = (currentOpponent.gamesPlayed || 0) + 1;
 
+        // Simulate all other league games this week
+        simulateOtherGamesThisWeek();
+
         userTeam.scheduleIndex++;
         currentOpponent.scheduleIndex++;
 
@@ -1101,7 +1139,14 @@
         userLineup.rp.rest = 2;
         opponentLineup.sp.rest = 2;
         opponentLineup.rp.rest = 2;
+
         currentWeek++;
+
+        league.forEach(t => {
+            if (t.gamesPlayed !== currentWeek + 1) {
+                console.warn("Games mismatch:", t.name, t.gamesPlayed, "expected", currentWeek + 1);
+            }
+        });
 
     }
 
