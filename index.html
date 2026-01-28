@@ -261,6 +261,17 @@
         return "Needs 2 games of rest";
     }
 
+    function advancePitcherRest(team){
+        team.roster.forEach(p => {
+            if(p.position === "SP" || p.position === "RP"){
+                if(p.rest > 0){
+                    p.rest--;
+                }
+            }
+        });
+    }
+
+
     function generatePlayer(role, position){
         return {
             name: `Player ${Math.floor(Math.random()*10000)}`,
@@ -299,51 +310,142 @@
         return card;
     }
 
+    function shuffleArray(arr){
+        for(let i = arr.length - 1; i > 0; i--){
+            const j = Math.floor(Math.random() * (i + 1));
+            [arr[i], arr[j]] = [arr[j], arr[i]];
+        }
+    }
+
+    function shuffle(arr){
+        return [...arr].sort(() => Math.random() - 0.5);
+    }
+
+
     /* ================== LEAGUE GENERATION ================== */
     function generateLeague(){
-        const divisions = ["North","South","East","West","Red","Giant"];
         league = [];
 
-        divisions.forEach(div=>{
-            for(let i=0;i<5;i++){
+        const divisions = {
+            East: [
+                "Korea Pop",
+                "Zimbabwe Zebras",
+                "Sydney Spiders",
+                "Tokyo Trains",
+                "Siberia Tigers"
+            ],
+            West: [
+                "Carolina Reapers",
+                "Mexico City Aztecs",
+                "Dublin Pints",
+                "Honolulu Islanders",
+                "Rio Tropics"
+            ],
+            North: [
+                "Cloud Nine Chorus",
+                "Eden Apples",
+                "New Jerusalem Halos",
+                "Holy Realm Halos",
+                "Gardenside Redeemers"
+            ],
+            South: [
+                "River Styx Ferrymen",
+                "Limbo Benders",
+                "Pandemonium Chaos",
+                "Hadestown Hellhounds",
+                "Black Lagoon Inferno"
+            ],
+            Red: [
+                "Slope City Summits",
+                "Hot Sand Dirt Devils",
+                "New Red City Revolutions",
+                "Cratertown Comets",
+                "Maroonville Rovers"
+            ],
+            Giant: [
+                "Europa Orbiters",
+                "Callisto Cannons",
+                "Jupiter City Gas Giants",
+                "Ganymede Moonmen",
+                "Great Red Spot Gravity"
+            ]
+        };
+
+        Object.entries(divisions).forEach(([division, teams]) => {
+            teams.forEach(name => {
                 const team = {
-                    name: (div==="North" && i===0) ? "Carolina Reapers" : `${div} Team ${i+1}`,
-                    division: div,
+                    name: name,
+                    division: division,
                     roster: [],
                     wins: 0,
                     losses: 0,
-                    schedule: []
+                    gamesPlayed: 0,
+                    schedule: [],
+                    scheduleIndex: 0
                 };
-                batterPositions.forEach(p=>team.roster.push(generatePlayer("batter",p)));
-                for(let j=0;j<3;j++) team.roster.push(generatePlayer("pitcher","SP"));
-                for(let j=0;j<3;j++) team.roster.push(generatePlayer("pitcher","RP"));
-                for(let j=0;j<2;j++) team.roster.push(generatePlayer("batter",rand(batterPositions)));
+
+                batterPositions.forEach(p => team.roster.push(generatePlayer("batter", p)));
+                for(let i=0;i<3;i++) team.roster.push(generatePlayer("pitcher", "SP"));
+                for(let i=0;i<3;i++) team.roster.push(generatePlayer("pitcher", "RP"));
+                for(let i=0;i<2;i++) team.roster.push(generatePlayer("batter", rand(batterPositions)));
+
                 league.push(team);
-                if(team.name==="Carolina Reapers") userTeam = team;
-            }
+
+                if(name === "Carolina Reapers"){
+                    userTeam = team;
+                }
+            });
         });
+
+        generateSeasonSchedules();
     }
+
 
     function generateSchedules(){
         league.forEach(team => {
-            const sameDivision = league.filter(t =>
-                t !== team && t.division === team.division
+            const divisionTeams = league.filter(
+                t => t.division === team.division && t !== team
             );
 
-            const otherTeams = league.filter(t =>
-                t.division !== team.division
+            const nonDivisionTeams = league.filter(
+                t => t.division !== team.division
             );
 
-            // 4 division opponents twice (home & away logic not tracked)
-            const divisionGames = [
-                ...sameDivision,
-                ...sameDivision
+            const randomNonDivision = shuffle(nonDivisionTeams).slice(0, 12);
+
+            team.schedule = [
+                ...divisionTeams,          // first division round (4)
+                ...randomNonDivision,      // random 12
+                ...divisionTeams           // second division round (4)
             ];
 
-            // 12 random non-division opponents
-            const randomGames = shuffle(otherTeams).slice(0, 12);
+            team.scheduleIndex = 0;
+        });
+    }
 
-            team.schedule = shuffle([...divisionGames, ...randomGames]);
+
+    function generateSeasonSchedules(){
+        league.forEach(team => {
+            const schedule = [];
+
+            // Division opponents (twice)
+            const divisionTeams = league.filter(
+                t => t.division === team.division && t !== team
+            );
+
+            divisionTeams.forEach(t => schedule.push(t));
+            divisionTeams.forEach(t => schedule.push(t));
+
+            // Random non-division opponents
+            const nonDivisionTeams = league.filter(
+                t => t.division !== team.division && t !== team
+            );
+
+            shuffleArray(nonDivisionTeams);
+
+            nonDivisionTeams.slice(0, 12).forEach(t => schedule.push(t));
+
+            team.schedule = schedule;
         });
     }
 
@@ -576,7 +678,7 @@
         leagueScreen.classList.add("hidden");
         gameSetupScreen.classList.remove("hidden");
 
-        currentOpponent = rand(league.filter(t => t!==userTeam));
+        currentOpponent = userTeam.schedule[userTeam.scheduleIndex];
 
         gameSetupTitle.innerText =
             `${userTeam.name} (${teamOverall(userTeam)} OVR) vs ` +
@@ -921,13 +1023,30 @@
             currentOpponent.wins = (currentOpponent.wins || 0) + 1;
         }
 
+        userTeam.gamesPlayed = (userTeam.gamesPlayed || 0) + 1;
+        currentOpponent.gamesPlayed = (currentOpponent.gamesPlayed || 0) + 1;
+
+        userTeam.scheduleIndex++;
+        currentOpponent.scheduleIndex++;
+
+
         // Replace Next button
         const nextBtn = document.querySelector("#gameScreen button");
         nextBtn.innerText = "Standings";
         nextBtn.onclick = () => {
             gameScreen.classList.add("hidden");
             showLeague();
+
         };
+
+        // Pitchers who played need rest
+        userLineup.sp.rest = 2;
+        userLineup.rp.rest = 2;
+        opponentLineup.sp.rest = 2;
+        opponentLineup.rp.rest = 2;
+
+        advancePitcherRest(userTeam);
+        advancePitcherRest(currentOpponent);
     }
 
 
@@ -954,7 +1073,6 @@
     /* ================== INIT ================== */
     window.onload = () => {
         generateLeague();
-        generateSchedules();
         simulateLeagueGames();
         startBtn.onclick = showRoster;
     };
