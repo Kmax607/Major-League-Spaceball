@@ -363,27 +363,21 @@
     }
 
 
+    function shouldUseReliever(inning){
+        const odds = {
+            4: 0.30,
+            5: 0.40,
+            6: 0.50,
+            7: 0.60,
+            8: 0.70,
+            9: 0.80,
+            10: 1.00
+        };
 
-    function validateSchedules() {
-        for (let w = 0; w < 20; w++) {
-            const seen = new Set();
-
-            league.forEach(team => {
-                const opp = team.schedule[w];
-                if (!opp) return;
-
-                const key = [team.name, opp.name].sort().join("|");
-
-                if (seen.has(key)) return;
-                seen.add(key);
-
-                // Force symmetry
-                if (opp.schedule[w] !== team) {
-                    opp.schedule[w] = team;
-                }
-            });
-        }
+        if (!odds[inning]) return false;
+        return Math.random() < odds[inning];
     }
+
 
 
 
@@ -464,7 +458,6 @@
         });
 
         generateSeasonSchedules();
-        validateSchedules();
     }
 
 
@@ -491,29 +484,56 @@
     }
 
 
-    function generateSeasonSchedules(){
-        league.forEach(team => {
-            const schedule = [];
+    function generateSeasonSchedules() {
 
-            // Division opponents (twice)
-            const divisionTeams = league.filter(
-                t => t.division === team.division && t !== team
-            );
+        // Clear schedules
+        league.forEach(t => t.schedule = []);
 
-            divisionTeams.forEach(t => schedule.push(t));
-            divisionTeams.forEach(t => schedule.push(t));
+        // ---- Division games (first 4 weeks) ----
+        Object.values(
+            league.reduce((acc, t) => {
+                acc[t.division] = acc[t.division] || [];
+                acc[t.division].push(t);
+                return acc;
+            }, {})
+        ).forEach(divisionTeams => {
 
-            // Random non-division opponents
-            const nonDivisionTeams = league.filter(
-                t => t.division !== team.division && t !== team
-            );
-
-            shuffleArray(nonDivisionTeams);
-
-            nonDivisionTeams.slice(0, 12).forEach(t => schedule.push(t));
-
-            team.schedule = schedule;
+            for (let i = 0; i < divisionTeams.length; i++) {
+                for (let j = i + 1; j < divisionTeams.length; j++) {
+                    divisionTeams[i].schedule.push(divisionTeams[j]);
+                    divisionTeams[j].schedule.push(divisionTeams[i]);
+                }
+            }
         });
+
+        // ---- Random inter-division games (12 weeks) ----
+        for (let w = 0; w < 12; w++) {
+            const pool = shuffle([...league]);
+            while (pool.length >= 2) {
+                const a = pool.pop();
+                const b = pool.pop();
+                a.schedule.push(b);
+                b.schedule.push(a);
+            }
+        }
+
+        // ---- Division games again (last 4 weeks) ----
+        Object.values(
+            league.reduce((acc, t) => {
+                acc[t.division] = acc[t.division] || [];
+                acc[t.division].push(t);
+                return acc;
+            }, {})
+        ).forEach(divisionTeams => {
+
+            for (let i = 0; i < divisionTeams.length; i++) {
+                for (let j = i + 1; j < divisionTeams.length; j++) {
+                    divisionTeams[i].schedule.push(divisionTeams[j]);
+                    divisionTeams[j].schedule.push(divisionTeams[i]);
+                }
+            }
+        });
+
     }
 
 
@@ -951,7 +971,10 @@
             opponentScore: 0,
             userBatterIndex: 0,
             oppBatterIndex: 0,
-            gameOver: false
+            gameOver: false,
+
+            userPitcher: userLineup.sp,
+            oppPitcher: opponentLineup.sp
         };
 
         gameTitle.innerText = `${userTeam.name} vs ${currentOpponent.name}`;
@@ -998,7 +1021,7 @@
         const offenseIsUser = !gameState.top;
 
         const lineup = offenseIsUser ? userLineup.batters : opponentLineup.batters;
-        const pitcher = offenseIsUser ? opponentLineup.sp : userLineup.sp;
+        const pitcher = offenseIsUser ? gameState.oppPitcher : gameState.userPitcher;
 
         const batterIndex = offenseIsUser
             ? gameState.userBatterIndex
@@ -1027,7 +1050,7 @@
 
         const offenseIsUser = !gameState.top;
         const lineup = offenseIsUser ? userLineup.batters : opponentLineup.batters;
-        const pitcher = offenseIsUser ? opponentLineup.sp : userLineup.sp;
+        const pitcher = offenseIsUser ? gameState.oppPitcher : gameState.userPitcher;
 
         const batterIndex = offenseIsUser ? gameState.userBatterIndex : gameState.oppBatterIndex;
         const batter = lineup[batterIndex % 9];
@@ -1053,6 +1076,26 @@
 
         if(gameState.outs >= 3){
             gameState.outs = 0;
+
+            // START OF NEW INNING: check for pitching change
+            if (gameState.outs === 0 && gameState.top) {
+
+                // User pitching (top of inning)
+                if (shouldUseReliever(gameState.inning) && gameState.userPitcher === userLineup.sp) {
+                    gameState.userPitcher = userLineup.rp;
+                    gameLog.innerText =
+                        `Pitching Change: ${userTeam.name} swap to the reliever.\n` +
+                        gameLog.innerText;
+                }
+
+                // Opponent pitching (bottom of inning)
+                if (shouldUseReliever(gameState.inning) && gameState.oppPitcher === opponentLineup.sp) {
+                    gameState.oppPitcher = opponentLineup.rp;
+                    gameLog.innerText =
+                        `Pitching Change: ${currentOpponent.name} swap to the reliever.\n` +
+                        gameLog.innerText;
+                }
+            }
 
             // End of TOP 9, home team already winning
             if(
@@ -1108,8 +1151,30 @@
         userTeam.gamesPlayed = (userTeam.gamesPlayed || 0) + 1;
         currentOpponent.gamesPlayed = (currentOpponent.gamesPlayed || 0) + 1;
 
-        // Simulate all other league games this week
+        // Register user game so it cannot be double-simulated
+        const userPairKey = [userTeam.name, currentOpponent.name].sort().join("|");
+
+        function simulateOtherGamesThisWeek() {
+            const paired = new Set([userPairKey]);
+
+            league.forEach(team => {
+                if (team === userTeam || team === currentOpponent) return;
+
+                const opponent = team.schedule[currentWeek];
+                if (!opponent) return;
+
+                if (opponent === userTeam || opponent === currentOpponent) return;
+
+                const key = [team.name, opponent.name].sort().join("|");
+                if (paired.has(key)) return;
+
+                paired.add(key);
+                simulateGame(team, opponent);
+            });
+        }
+
         simulateOtherGamesThisWeek();
+
 
 
         // Replace Next button
