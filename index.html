@@ -227,6 +227,24 @@
     const requiredMinimums = {"1B":1,"2B":1,"3B":1,"SS":1,"C":1,"LF":1,"CF":1,"RF":1,"SP":3,"RP":3};
     const REQUIRED_CUTS = 5;
 
+    const humanFirstNames = [
+        "Alex","Jordan","Chris","Taylor","Sam","Mike","Ryan","James","Luis","Carlos",
+        "Daniel","Marcus","Ethan","Noah","Lucas","Jaden","Dylan","Logan","Aaron","Tyler"
+    ];
+
+    const humanLastNames = [
+        "Smith","Johnson","Martinez","Rodriguez","Williams","Brown","Davis","Miller",
+        "Wilson","Moore","Taylor","Anderson","Thomas","Jackson","White","Harris",
+        "Clark","Lewis","Walker","Hall"
+    ];
+
+
+    /* ================== NAMES ================== */
+
+    function randomHumanName(){
+        return `${rand(humanFirstNames)} ${rand(humanLastNames)}`;
+    }
+
     /* ================== STATE ================== */
     let league = [];
     let userTeam = null;
@@ -277,7 +295,7 @@
 
     function generatePlayer(role, position){
         return {
-            name: `Player ${Math.floor(Math.random()*10000)}`,
+            name: randomHumanName(),
             classKey: "human",
             age: 20 + Math.floor(Math.random()*6),
             position,
@@ -325,26 +343,25 @@
     }
 
     function simulateOtherGamesThisWeek() {
-        const handled = new Set();
+        const paired = new Set();
 
         league.forEach(team => {
-            // Skip user game participants
             if (team === userTeam || team === currentOpponent) return;
 
             const opponent = team.schedule[currentWeek];
             if (!opponent) return;
 
-            // Skip if opponent is user game
+            // Skip user game participants
             if (opponent === userTeam || opponent === currentOpponent) return;
 
             const key = [team.name, opponent.name].sort().join("|");
-            if (handled.has(key)) return;
+            if (paired.has(key)) return;
 
-            handled.add(key);
-
+            paired.add(key);
             simulateGame(team, opponent);
         });
     }
+
 
 
     function validateSchedules() {
@@ -532,33 +549,6 @@
 
         currentOpponent = userTeam.schedule[currentWeek];
         showSetLineup();
-    }
-
-    function simulateLeagueGames(){
-        const played = new Set();
-
-        league.forEach(team => {
-            team.schedule.forEach(opponent => {
-                const key = [team.name, opponent.name].sort().join("|");
-                if(played.has(key)) return;
-
-                played.add(key);
-
-                const teamOVR = teamOverall(team);
-                const oppOVR = teamOverall(opponent);
-
-                const roll = Math.random() * (teamOVR + oppOVR);
-                const teamWins = roll < teamOVR;
-
-                if(teamWins){
-                    team.wins++;
-                    opponent.losses++;
-                } else {
-                    opponent.wins++;
-                    team.losses++;
-                }
-            });
-        });
     }
 
 
@@ -1120,9 +1110,6 @@
 
         // Simulate all other league games this week
         simulateOtherGamesThisWeek();
-
-        userTeam.scheduleIndex++;
-        currentOpponent.scheduleIndex++;
 
 
         // Replace Next button
