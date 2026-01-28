@@ -378,6 +378,35 @@
         return Math.random() < odds[inning];
     }
 
+    function getWeeklyMatchups(week) {
+        const seen = new Set();
+        const games = [];
+
+        league.forEach(team => {
+            const opponent = team.schedule[week];
+            if (!opponent) return;
+
+            const key = [team.name, opponent.name].sort().join("|");
+            if (seen.has(key)) return;
+
+            seen.add(key);
+            games.push([team, opponent]);
+        });
+
+        return games;
+    }
+
+
+    function simulateWeek() {
+        const games = getWeeklyMatchups(currentWeek);
+
+        games.forEach(([teamA, teamB]) => {
+            simulateGame(teamA, teamB);
+        });
+
+        currentWeek++;
+    }
+
 
 
 
@@ -1061,7 +1090,7 @@
         const result = plateAppearance(batter, pitcher);
 
         gameLog.innerText =
-            `Inning ${gameState.inning} ${gameState.top?"Top":"Bottom"}: ${batter.name} - ${result}\n`
+            `${gameState.top?"Top":"Bottom"} ${gameState.inning} : ${batter.name} - ${result}\n`
             + gameLog.innerText;
 
         if(result === "HR"){
@@ -1173,17 +1202,19 @@
             });
         }
 
-        simulateOtherGamesThisWeek();
-
-
-
         // Replace Next button
         const nextBtn = document.querySelector("#gameScreen button");
         nextBtn.innerText = "Standings";
         nextBtn.onclick = () => {
+
+            // Simulate remaining league games for THIS week
+            simulateOtherGamesThisWeek();
+
+            // Advance week ONCE
+            currentWeek++;
+
             gameScreen.classList.add("hidden");
             showLeague();
-
         };
 
         // Pitchers who played need rest
@@ -1191,8 +1222,6 @@
         userLineup.rp.rest = 2;
         opponentLineup.sp.rest = 2;
         opponentLineup.rp.rest = 2;
-
-        currentWeek++;
 
         league.forEach(t => {
             if (t.gamesPlayed !== currentWeek + 1) {
