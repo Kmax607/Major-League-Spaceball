@@ -246,6 +246,9 @@
 
     let gameState = null;
 
+    let currentWeek = 0;
+
+
 
     /* ================== HELPERS ================== */
     const rand = a => a[Math.floor(Math.random()*a.length)];
@@ -393,6 +396,7 @@
 
                 if(name === "Carolina Reapers"){
                     userTeam = team;
+                    team.isUser = true;
                 }
             });
         });
@@ -447,6 +451,55 @@
 
             team.schedule = schedule;
         });
+    }
+
+
+    function simulateGame(teamA, teamB){
+        const ovrA = teamOverall(teamA);
+        const ovrB = teamOverall(teamB);
+
+        const roll = Math.random() * (ovrA + ovrB);
+        const aWins = roll < ovrA;
+
+        if(aWins){
+            teamA.wins++;
+            teamB.losses++;
+        } else {
+            teamB.wins++;
+            teamA.losses++;
+        }
+
+        teamA.gamesPlayed++;
+        teamB.gamesPlayed++;
+    }
+
+
+
+    function startNextGame() {
+        if (currentWeek >= userTeam.schedule.length) {
+            alert("Season complete!");
+            return;
+        }
+
+        currentOpponent = userTeam.schedule[currentWeek];
+
+        // Simulate all OTHER games this week
+        league.forEach(team => {
+            if (team === userTeam) return;
+
+            const opponent = team.schedule[currentWeek];
+            if (!opponent) return;
+
+            // Prevent double-simulation
+            if (league.indexOf(team) > league.indexOf(opponent)) return;
+
+            simulateGame(team, opponent);
+        });
+
+        // Advance pitcher rest ONCE per week
+        league.forEach(team => advancePitcherRest(team));
+
+        showSetLineup();
     }
 
     function simulateLeagueGames(){
@@ -559,9 +612,13 @@
     function confirmCuts(){
         userTeam.roster = userTeam.roster.filter(p => !cuts.has(p));
         cuts.clear();
+
+        freeAgencyComplete = true;
+
         cutsScreen.classList.add("hidden");
         showLeague();
     }
+
 
     /* ================== LEAGUE ================== */
     function showLeague(){
@@ -594,7 +651,7 @@
         });
 
         leagueActionBtn.innerText = freeAgencyComplete ? "Next Game" : "See Free Agents";
-        leagueActionBtn.onclick = freeAgencyComplete ? showSetLineup : showFreeAgents;
+        leagueActionBtn.onclick = freeAgencyComplete ? startNextGame : showFreeAgents;
     }
 
 
@@ -675,10 +732,10 @@
 
     /* ================== SET LINEUP ================== */
     function showSetLineup(){
+
         leagueScreen.classList.add("hidden");
         gameSetupScreen.classList.remove("hidden");
 
-        currentOpponent = userTeam.schedule[userTeam.scheduleIndex];
 
         gameSetupTitle.innerText =
             `${userTeam.name} (${teamOverall(userTeam)} OVR) vs ` +
@@ -1044,9 +1101,8 @@
         userLineup.rp.rest = 2;
         opponentLineup.sp.rest = 2;
         opponentLineup.rp.rest = 2;
+        currentWeek++;
 
-        advancePitcherRest(userTeam);
-        advancePitcherRest(currentOpponent);
     }
 
 
@@ -1073,7 +1129,6 @@
     /* ================== INIT ================== */
     window.onload = () => {
         generateLeague();
-        simulateLeagueGames();
         startBtn.onclick = showRoster;
     };
 
