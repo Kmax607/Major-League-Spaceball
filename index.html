@@ -211,7 +211,10 @@
             <h4>On The Mound</h4>
             <div id="currentPitcherCard"></div>
 
-            <button style="margin-top:12px" onclick="advanceHalfInning()">Next</button>
+            <div style="display:flex; gap:10px; margin-top:12px">
+                <button id="nextBatterBtn">Next Batter</button>
+                <button id="nextInningBtn">Next Inning</button>
+            </div>
 
         </div>
 
@@ -989,8 +992,19 @@
 
     function initGame(){
         const nextBtn = document.querySelector("#gameScreen button");
-        nextBtn.innerText = "Next";
+        nextBtn.innerText = "Next Batter";
         nextBtn.onclick = advanceHalfInning;
+
+        document.getElementById("nextBatterBtn").onclick = advanceHalfInning;
+
+        document.getElementById("nextInningBtn").onclick = () => {
+            if (gameState.gameOver) return;
+
+            // Force end of half-inning
+            gameState.outs = 3;
+            advanceHalfInning();
+        };
+
 
         gameState = {
             inning: 1,
